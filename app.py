@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[3]:
 
 
 import pandas as pd
@@ -188,35 +188,28 @@ pie_chart = alt.Chart(sessions_pie).mark_arc().encode(
 st.altair_chart(pie_chart, use_container_width=True)
 
 # C) Transactions vs Avg Session Time by Project (scatter)
-st.subheader("Transactions vs Average Session Duration by Project")
-# session-weighted average session duration (seconds) per project
-def weighted_avg_duration(subdf: pd.DataFrame) -> float:
-    # Use sessions as weights for averaging duration
-    w = subdf["sessions"].values
-    v = subdf["avg_session_duration_seconds"].values if "avg_session_duration_seconds" in subdf.columns else np.zeros_like(w)
-    # guard against all-zero weights
-    return float(np.average(v, weights=np.where(w>0, w, 1)))
+st.subheader("Transactions vs Average Session Duration by Row (daily/project)")
 
-proj_scatter = (fdf.groupby("project")
-                  .apply(lambda g: pd.Series({
-                      "transactions": g["transactions"].sum(),
-                      "avg_session_seconds_weighted": weighted_avg_duration(g)
-                  }))
-                  .reset_index())
+if "avg_session_duration_seconds" not in fdf.columns:
+    st.warning("Column 'avg_session_duration_seconds' is missing in dataset.")
+else:
+    # Convert to minutes for readability
+    fdf["avg_session_minutes"] = fdf["avg_session_duration_seconds"] / 60.0
 
-proj_scatter["avg_session_minutes"] = proj_scatter["avg_session_seconds_weighted"] / 60.0
+    scatter = alt.Chart(fdf).mark_circle(size=60, opacity=0.6).encode(
+        x=alt.X("avg_session_minutes:Q", title="Avg Session Duration (minutes)"),
+        y=alt.Y("transactions:Q", title="Transactions"),
+        color=alt.Color("project:N", legend=alt.Legend(title="Project")),
+        tooltip=[
+            alt.Tooltip("date:T", title="Date"),
+            alt.Tooltip("project:N", title="Project"),
+            alt.Tooltip("avg_session_minutes:Q", title="Avg Session (min)", format=".2f"),
+            alt.Tooltip("transactions:Q", title="Transactions", format=",.0f")
+        ]
+    ).properties(height=320)
 
-scatter = alt.Chart(proj_scatter).mark_circle(size=140).encode(
-    x=alt.X("avg_session_minutes:Q", title="Avg Session Duration (minutes)"),
-    y=alt.Y("transactions:Q", title="Transactions"),
-    color=alt.Color("project:N", legend=alt.Legend(title="Project")),
-    tooltip=[
-        alt.Tooltip("project:N", title="Project"),
-        alt.Tooltip("avg_session_minutes:Q", title="Avg Session (min)", format=".2f"),
-        alt.Tooltip("transactions:Q", title="Transactions", format=",.0f")
-    ]
-).properties(height=320)
-st.altair_chart(scatter, use_container_width=True)
+    st.altair_chart(scatter, use_container_width=True)
+
 
 # Table preview
 with st.expander("Preview filtered rows"):
