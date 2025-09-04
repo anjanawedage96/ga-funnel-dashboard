@@ -184,7 +184,7 @@ pie_chart = alt.Chart(sessions_pie).mark_arc().encode(
     theta=alt.Theta(field="sessions", type="quantitative"),
     color=alt.Color(field="project", type="nominal", legend=alt.Legend(title="Project")),
     tooltip=["project","sessions"]
-).properties(height=320)
+).properties(height=530)
 st.altair_chart(pie_chart, use_container_width=True)
 
 # C) Transactions vs Avg Session Time by Project (scatter)
