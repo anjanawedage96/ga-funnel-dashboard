@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[3]:
+# In[1]:
 
 
 import pandas as pd
@@ -145,7 +145,7 @@ roas_chart = alt.Chart(roas_proj).mark_bar().encode(
 ).properties(height=280)
 st.altair_chart(roas_chart, use_container_width=True)
 
-# 4) Optional: Revenue trend by month
+# 4) Revenue trend by month
 st.subheader("Revenue Trend")
 line_rev = alt.Chart(monthly).mark_line(point=True).encode(
     x=alt.X("month:T", title="Month"),
@@ -154,6 +154,69 @@ line_rev = alt.Chart(monthly).mark_line(point=True).encode(
     tooltip=["month:T","project:N","revenue:Q"]
 ).properties(height=300)
 st.altair_chart(line_rev, use_container_width=True)
+
+# ===========================
+# 🔥 NEW CHARTS YOU ASKED FOR
+# ===========================
+
+# A) Bounce Rate by Project (weighted bar)
+st.subheader("Bounce Rate by Project (weighted)")
+# session-weighted bounce rate per project = sum(sessions*bounce_rate)/sum(sessions)
+proj_bounce = (fdf.groupby("project", as_index=False)
+                 .agg(sessions=("sessions","sum"),
+                      bounces=("bounces_est","sum")))
+proj_bounce["bounce_rate_weighted"] = np.where(
+    proj_bounce["sessions"]>0,
+    proj_bounce["bounces"]/proj_bounce["sessions"],
+    np.nan
+)
+bounce_chart = alt.Chart(proj_bounce).mark_bar().encode(
+    x=alt.X("project:N", title="Project"),
+    y=alt.Y("bounce_rate_weighted:Q", title="Bounce Rate", axis=alt.Axis(format='%')),
+    tooltip=["project","bounce_rate_weighted"]
+).properties(height=280)
+st.altair_chart(bounce_chart, use_container_width=True)
+
+# B) Session Count (pie chart) by Project
+st.subheader("Sessions Share by Project (Pie)")
+sessions_pie = proj_bounce[["project","sessions"]].copy()
+pie_chart = alt.Chart(sessions_pie).mark_arc().encode(
+    theta=alt.Theta(field="sessions", type="quantitative"),
+    color=alt.Color(field="project", type="nominal", legend=alt.Legend(title="Project")),
+    tooltip=["project","sessions"]
+).properties(height=320)
+st.altair_chart(pie_chart, use_container_width=True)
+
+# C) Transactions vs Avg Session Time by Project (scatter)
+st.subheader("Transactions vs Average Session Duration by Project")
+# session-weighted average session duration (seconds) per project
+def weighted_avg_duration(subdf: pd.DataFrame) -> float:
+    # Use sessions as weights for averaging duration
+    w = subdf["sessions"].values
+    v = subdf["avg_session_duration_seconds"].values if "avg_session_duration_seconds" in subdf.columns else np.zeros_like(w)
+    # guard against all-zero weights
+    return float(np.average(v, weights=np.where(w>0, w, 1)))
+
+proj_scatter = (fdf.groupby("project")
+                  .apply(lambda g: pd.Series({
+                      "transactions": g["transactions"].sum(),
+                      "avg_session_seconds_weighted": weighted_avg_duration(g)
+                  }))
+                  .reset_index())
+
+proj_scatter["avg_session_minutes"] = proj_scatter["avg_session_seconds_weighted"] / 60.0
+
+scatter = alt.Chart(proj_scatter).mark_circle(size=140).encode(
+    x=alt.X("avg_session_minutes:Q", title="Avg Session Duration (minutes)"),
+    y=alt.Y("transactions:Q", title="Transactions"),
+    color=alt.Color("project:N", legend=alt.Legend(title="Project")),
+    tooltip=[
+        alt.Tooltip("project:N", title="Project"),
+        alt.Tooltip("avg_session_minutes:Q", title="Avg Session (min)", format=".2f"),
+        alt.Tooltip("transactions:Q", title="Transactions", format=",.0f")
+    ]
+).properties(height=320)
+st.altair_chart(scatter, use_container_width=True)
 
 # Table preview
 with st.expander("Preview filtered rows"):
